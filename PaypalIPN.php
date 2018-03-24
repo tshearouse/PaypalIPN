@@ -1,5 +1,7 @@
 <?php
 
+//Largely borrowed from https://github.com/paypal/ipn-code-samples/
+
 class PaypalIPN
 {
 
