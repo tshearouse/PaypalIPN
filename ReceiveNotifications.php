@@ -28,6 +28,7 @@ if ($verified) {
         $senderEmail = $_POST["sender_email"];
     $paymentAmount = floatval($_POST["mc_gross"]);
     $transactionType = $_POST["txn_type"];
+    $transactionId = $_POST["txn_id"];
 
     if (isSuccessfulPayment($transactionType)) {
         //If it's a $40 (or $37.50 for legacy) payment, extend membership by 1 month
@@ -37,22 +38,22 @@ if ($verified) {
         else
             $memo = $_POST["memo"];
         if ($memo && strpos($memo, 'Membership') !== 0 && $paymentAmount < 400) {
-            $googleDrive -> updateRow($senderEmail, "month", $paymentAmount);
+            $googleDrive -> updateRow($senderEmail, "month", $paymentAmount, $transactionId);
         } else if ($memo && strpos($memo, 'Membership') !== 0 && $paymentAmount >= 400) {
-            $googleDrive -> updateRow($senderEmail, "year", $paymentAmount);
+            $googleDrive -> updateRow($senderEmail, "year", $paymentAmount, $transactionId);
         } else if ($paymentAmount == 40 || $paymentAmount == 37.50 || $paymentAmount == 60) {
-            $googleDrive -> updateRow($senderEmail, "month", $paymentAmount);
+            $googleDrive -> updateRow($senderEmail, "month", $paymentAmount, $transactionId);
         } else if ($paymentAmount == 430 || $paymentAmount == 400 || $paymentAmount == 645) {
-            $googleDrive -> updateRow($senderEmail, "year", $paymentAmount);
+            $googleDrive -> updateRow($senderEmail, "year", $paymentAmount, $transactionId);
         }
     } else if (isPaymentReversal($transactionType)) {
         //If someone filed a chargeback or adjustment,
         //we should un-apply their membership extension.
         if ($paymentAmount == -40 || $paymentAmount == -37.50 || $paymentAmount == 60) {
-            $googleDrive -> updateRow($senderEmail, "removeMonth", $paymentAmount);
+            $googleDrive -> updateRow($senderEmail, "removeMonth", $paymentAmount, $transactionId);
         }
         if ($paymentAmount == -430 || $paymentAmount == -400 || $paymentAmount == -645) {
-            $googleDrive -> updateRow($senderEmail, "removeYear", $paymentAmount);
+            $googleDrive -> updateRow($senderEmail, "removeYear", $paymentAmount, $transactionId);
         }
     } else if (isPaymentFailure($transactionType)) {
         //idk, leave a note somewhere?

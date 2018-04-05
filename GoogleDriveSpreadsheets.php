@@ -7,7 +7,7 @@ include_once ("OtherStuff.php");
 
 class GoogleSpreadsheet {
 
-    public function updateRow($emailAddress, $timeInterval, $paymentAmount) {
+    public function updateRow($emailAddress, $timeInterval, $paymentAmount, $transactionId) {
 
         global $fileId;
         $client = $this -> getGoogleClient();
@@ -35,7 +35,7 @@ class GoogleSpreadsheet {
                 $rowId = substr($rowId, strrpos($rowId, '/') + 1);
                 $expDate = $expDate -> format("m/d/Y");
                 $this -> updateRowInFile($fileId, $rowId, $newExpDate, $accessToken);
-                $this -> addRowToAuditFile($emailAddress, $expDate, $newExpDate, $paymentAmount, $accessToken);
+                $this -> addRowToAuditFile($emailAddress, $expDate, $newExpDate, $paymentAmount, $accessToken, $transactionId);
             }
             $entry = array_pop($tableXML);
         }
@@ -111,13 +111,13 @@ class GoogleSpreadsheet {
         }
     }
 
-    function addRowToAuditFile($emailAddress, $oldExpiration, $newExpiration, $amount, $accessToken) {
+    function addRowToAuditFile($emailAddress, $oldExpiration, $newExpiration, $amount, $accessToken, $transactionId) {
         
         global $auditFileId;
 		$now = new DateTime() -> format("m/d/Y");
         $url = "https://spreadsheets.google.com/feeds/list/$auditFileId/od6/private/full";
         $headers = ["Authorization" => "Bearer $accessToken", 'Content-Type' => 'application/atom+xml'];
-        $postBody = "<entry xmlns=\"http://www.w3.org/2005/Atom\" xmlns:gsx=\"http://schemas.google.com/spreadsheets/2006/extended\"><gsx:paypalemail>$emailAddress</gsx:paypalemail><gsx:amountpaid>$amount</gsx:amountpaid><gsx:oldexpirationdate>$oldExpiration</gsx:oldexpirationdate><gsx:newexpirationdate>$newExpiration</gsx:newexpirationdate><gsx:processeddate>$now</gsx:processeddate></entry>";
+        $postBody = "<entry xmlns=\"http://www.w3.org/2005/Atom\" xmlns:gsx=\"http://schemas.google.com/spreadsheets/2006/extended\"><gsx:paypalemail>$emailAddress</gsx:paypalemail><gsx:amountpaid>$amount</gsx:amountpaid><gsx:oldexpirationdate>$oldExpiration</gsx:oldexpirationdate><gsx:newexpirationdate>$newExpiration</gsx:newexpirationdate><gsx:processeddate>$now</gsx:processeddate><gsx:transactionid>$transactionId</gsx:transactionid></entry>";
         $httpClient = new GuzzleHttp\Client(['headers' => $headers]);
         $resp = $httpClient -> request('POST', $url, ['body' => $postBody]);
         $body = $resp -> getBody() -> getContents();
