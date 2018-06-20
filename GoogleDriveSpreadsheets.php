@@ -7,7 +7,7 @@ include_once ("OtherStuff.php");
 
 class GoogleSpreadsheet {
 
-    public function updateRow($emailAddress, $timeInterval, $paymentAmount, $transactionId) {
+    public function updateRow($emailAddress, $paymentAmount, $transactionId) {
 
         global $fileId;
         $client = $this -> getGoogleClient();
@@ -21,7 +21,14 @@ class GoogleSpreadsheet {
         $tableXML = simplexml_load_string($spreadsheetRows);
 
         //Loop over this, because family memberships might have multiple cards under the same email
+		$numberOfBadges = $tableXML -> entry -> count();
         foreach ($tableXML -> entry as $entry) {
+			$discount = $this -> findColumnFromEntry("discount", $entry);
+			if(!isset($discount))
+				$discount = 0;
+			$timeInterval = $this -> findTimeInterval($paymentAmount, $discount, $numberOfBadges);
+			if(!isset($timeInterval) || $timeInterval === "")
+				return;
 
             //Look for the "Expiration Date" column, add time to it, then save the row back to the Google spreadsheet
             //Again, note that all the column names need to be lowercased for some reason.
@@ -40,6 +47,27 @@ class GoogleSpreadsheet {
             $entry = array_pop($tableXML);
         }
     }
+	
+	function findTimeInterval($paymentAmount, $discount, $numberOfBadges) {
+		//paymentAmount + discount = normalPrice
+		//If there are multiple people under a single payment plan, then:
+		//(paymentAmount + discount * numberOfPeople) / numberOfPeople = normalPriceForOnePerson
+		$amountPlusDiscount = round(($paymentAmount + $discount * $numberOfBadges) / floatval($numberOfBadges), 2);
+		if($paymentAmount < 0)
+			$amountPlusDiscount = round($paymentAmount - $discount, 2);
+		$timeInterval = "";
+		if(40 == $amountPlusDiscount) {
+			$timeInterval = "month";
+		} else if(430 == $amountPlusDiscount) {
+			$timeInterval = "year";
+		} else if(-40 == $amountPlusDiscount) {
+			$timeInterval = "removeMonth";
+		} else if(-430 == $amountPlusDiscount) {
+			$timeInterval = "removeYear";
+		}
+		
+		return $timeInterval;
+	}
 
     function findColumnFromEntry($columnName, $entry) {
 
@@ -114,7 +142,8 @@ class GoogleSpreadsheet {
     function addRowToAuditFile($emailAddress, $oldExpiration, $newExpiration, $amount, $accessToken, $transactionId) {
         
         global $auditFileId;
-		$now = new DateTime() -> format("m/d/Y");
+		$now = new DateTime();
+		$now = $now -> format("m/d/Y");
         $url = "https://spreadsheets.google.com/feeds/list/$auditFileId/od6/private/full";
         $headers = ["Authorization" => "Bearer $accessToken", 'Content-Type' => 'application/atom+xml'];
         $postBody = "<entry xmlns=\"http://www.w3.org/2005/Atom\" xmlns:gsx=\"http://schemas.google.com/spreadsheets/2006/extended\"><gsx:paypalemail>$emailAddress</gsx:paypalemail><gsx:amountpaid>$amount</gsx:amountpaid><gsx:oldexpirationdate>$oldExpiration</gsx:oldexpirationdate><gsx:newexpirationdate>$newExpiration</gsx:newexpirationdate><gsx:processeddate>$now</gsx:processeddate><gsx:transactionid>$transactionId</gsx:transactionid></entry>";

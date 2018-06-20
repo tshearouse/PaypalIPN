@@ -1,0 +1,12 @@
+    <configuration xmlns="http://logging.apache.org/log4php/">
+        <appender name="ipnLogs" class="LoggerAppenderFile">
+            <layout class="LoggerLayoutPattern">
+                <param name="conversionPattern" value="%date [%logger] %message%newline" />
+            </layout>
+            <param name="file" value="ipn.log" />
+        </appender>
+        <root>
+            <level value="WARN" />
+            <appender_ref ref="ipnLogs" />
+        </root>
+    </configuration>

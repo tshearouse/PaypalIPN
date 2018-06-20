@@ -8,14 +8,21 @@ error_reporting(0);
 
 require ('PaypalIPN.php');
 require ('GoogleDriveSpreadsheets.php');
+include ('log4php/Logger.php');
+
+Logger::configure('config.xml');
+$log = Logger::getLogger('ipnLog');
 
 $ipn = new PaypalIPN();
 $googleDrive = new GoogleSpreadsheet();
 
 // Uncomment to test in the Paypal sandbox.
 //$ipn->useSandbox();
-$verified = $ipn -> verifyIPN();
-// $verified = true;
+//$verified = $ipn -> verifyIPN();
+if (!$verified) {
+    $requestBody = @file_get_contents('php://input');
+    $log->warn("Unverified call, with body: \n$requestBody");
+}
 if ($verified) {
     /*
      * Process IPN
@@ -31,31 +38,14 @@ if ($verified) {
     $transactionId = $_POST["txn_id"];
 
     if (isSuccessfulPayment($transactionType)) {
-        //If it's a $40 (or $37.50 for legacy) payment, extend membership by 1 month
-        //If it's a $430 (or $400 for legacy) payment, extend membership by 1 year
-        if ($_POST["item_name"])
-            $memo = $_POST["item_name"];
-        else
-            $memo = $_POST["memo"];
-        if ($memo && strpos($memo, 'Membership') !== 0 && $paymentAmount < 400) {
-            $googleDrive -> updateRow($senderEmail, "month", $paymentAmount, $transactionId);
-        } else if ($memo && strpos($memo, 'Membership') !== 0 && $paymentAmount >= 400) {
-            $googleDrive -> updateRow($senderEmail, "year", $paymentAmount, $transactionId);
-        } else if ($paymentAmount == 40 || $paymentAmount == 37.50 || $paymentAmount == 60) {
-            $googleDrive -> updateRow($senderEmail, "month", $paymentAmount, $transactionId);
-        } else if ($paymentAmount == 430 || $paymentAmount == 400 || $paymentAmount == 645) {
-            $googleDrive -> updateRow($senderEmail, "year", $paymentAmount, $transactionId);
-        }
+		$googleDrive -> updateRow($senderEmail, $paymentAmount, $transactionId);
     } else if (isPaymentReversal($transactionType)) {
+        $log->warn("Payment reversal. \tEmail: $senderEmail\tAmount: $paymentAmount\tTransaction type: $transactionType");
         //If someone filed a chargeback or adjustment,
         //we should un-apply their membership extension.
-        if ($paymentAmount == -40 || $paymentAmount == -37.50 || $paymentAmount == 60) {
-            $googleDrive -> updateRow($senderEmail, "removeMonth", $paymentAmount, $transactionId);
-        }
-        if ($paymentAmount == -430 || $paymentAmount == -400 || $paymentAmount == -645) {
-            $googleDrive -> updateRow($senderEmail, "removeYear", $paymentAmount, $transactionId);
-        }
+		$googleDrive -> updateRow($senderEmail, $paymentAmount, $transactionId);
     } else if (isPaymentFailure($transactionType)) {
+        $log->warn("Payment failure. \tEmail: $senderEmail\tAmount: $paymentAmount\tTransaction type: $transactionType");
         //idk, leave a note somewhere?
     }
 }
